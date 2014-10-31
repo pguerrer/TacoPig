@@ -55,7 +55,13 @@ function [nlml, nlmlg] = NLML(this, parvec)
                 alpha = (invK*ym');
                 nlml = 0.5*(ym*alpha + sum(log(S0)) + N*log(2*pi));
             elseif (use_chol)
-                L = chol(K, 'lower');
+				[L, p] = chol(K, 'lower');
+				if p>0
+                        warning('non-positive-definite K, skipping point...');
+                        nlml = Inf;
+						nlmlg = GetGradientForIncreasingNoise(parvec);
+                        return;
+				end
                 if nargout>1
                     I = eye(size(K));
                     invK  = L'\(L\I);
@@ -95,4 +101,9 @@ function [nlml, nlmlg] = NLML(this, parvec)
             end
           
            
-        end
+end
+
+function nlmlg = GetGradientForIncreasingNoise(parvec)
+	nlmlg     = zeros(length(parvec),1);
+    nlmlg(end) = -1;
+end
