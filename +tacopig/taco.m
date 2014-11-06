@@ -1,7 +1,7 @@
 % All the tacopig classes inherit from the handle class so that they can be
 % passed by reference. However, the neccessary mechanisms for this should not 
 % appear in the documentation 
-classdef taco < handle
+classdef taco < matlab.mixin.Copyable
 
     % We will wrap all the methods of handle but make them hidden
      methods (Hidden)

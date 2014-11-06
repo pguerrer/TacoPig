@@ -22,6 +22,7 @@ classdef Regressor < tacopig.gp.GpCore
         has_been_solved     % Flag to stop premature querying of a model
         lml                 % log marginal likelihood of training data
         verbose             % Switch for friendly warnings & progress display
+        partial_derivate    % the partial derivation of the kernel
     end
     
    
@@ -198,6 +199,7 @@ classdef Regressor < tacopig.gp.GpCore
                 ks = this.CovFn.eval(this.X,x_star(:,LR),this)';
                 mu_star(LR) = mu_0(LR) + (ks*this.alpha)';
 
+                
                 if (nargout>=2)
                     % Compute predictive variance
                     var0 = this.CovFn.pointval(x_star(:,LR), this);
@@ -223,7 +225,146 @@ classdef Regressor < tacopig.gp.GpCore
             end
         end
         
+        %% se calcula el gradiente del proceso gausiano
         
+        % Set the partial derivation to evaluete the jacobian of the
+        % procesor. The input are the actual state, the n training data and
+        % the index of the component of the state (starting white 1).
+        % the train data to evaluete.
+        function [] = set_kernel_partial_derivation(this, pDerivation)
+            this.partial_derivate = pDerivation;
+        end
+        
+        % Solo recibe un argumento a la vez
+        function [jacob] = getJacobian(this, state) 
+            rows = length(this.X(1,:));
+            columns = length(state(:,1));
+            jacob = zeros(rows, columns);
+            W = diag(this.covpar(1:end-1),0);
+			phi = this.covpar(end);
+            for contI = 1: rows
+                for contJ = 1 : columns
+                     jacob(contI,contJ) = this.CovFn.getPartialDerivator(phi,W,state,this.X(:,contI),contJ);
+                end
+            end
+            
+        end
+        
+        function [jacobian, var_star, var_full] = gradient(this, x_star, NumBatches)
+        % Query the model after it has been solved
+        %
+        % [mu_star, var_star, var_full] = Regressor.query(x_star, batches)
+        %
+        % Inputs:   x_star = test points
+        %           NumBatches = the number of batches that the test points are broken up into. Default = 1
+        % Outputs:  mu_star ( predictive mean at the query points)
+        %           var_star ( predictive variance at the query points)
+        %           var_ful ( the full covariance matrix between all query points )
+        
+            % The user can (optionally) split the data into batches)
+            if (nargin<3)
+                NumBatches = 1;
+            end
+            if (~this.has_been_solved)
+                error('tacopig:badConfiguration', 'GP must be solved first using GP.solve.');
+            end
+            if (length(x_star(1,:)) > 1)
+                error('only one state at a time, or the stae is nos a column, roberto.');
+            end
+            this.check();
+            
+            % Get input lengths
+            N = size(this.X,2); 
+            nx = size(x_star,2);
+            
+            if abs(round(NumBatches)-NumBatches)>1e-16
+                error('tacopig:inputInvalidType', 'Batches must be an integer');
+            end
+            NumBatches = round(NumBatches);
+            
+            % The user can also (optionally get the full variance 
+            if (nargout==3)
+                % provided they havent split the data
+                if (NumBatches > 1)
+                    error('tacopig:badConfiguration', 'Cannot obtain full variance in batches');
+                end
+                
+                if (nx>4000)&(this.verbose)
+                    disp(['Warning: Large number of query points for obtaining full posterior covariance!'...
+                        'This may result in considerable computational time.'...
+                        'Press Ctrl+C to abort or any other key to continue.'])
+                    pause
+                end
+                
+            end
+            
+            
+            jacobian = zeros(nx,size(x_star,1));
+            if (nargout>1) 
+                var_star   = zeros(1,nx);
+            end
+                        
+            use_svd = false;
+            use_chol = false;
+            if strcmpi(this.factors.type, 'svd')
+                factorS = sqrt(this.factors.S2);
+                use_svd = true;
+            elseif strcmpi(this.factors.type, 'chol')
+                use_chol = true;
+            else
+                error('tacopig:badConfiguration', 'Factorization is not recognized.');
+            end
+            
+            % we are currently handling the possibility of multi-task with
+            % common points as a general case of GP_Std
+            mu_0 = this.MeanFn.eval(x_star, this);
+            
+            partitions = round(linspace(1, nx+1, NumBatches+1));
+            
+            for i = 1:NumBatches
+                
+                % Handle Batches
+                L = partitions(i);
+                R = partitions(i+1)-1;
+                LR = L:R;
+                
+                % Progress Bar
+                if (NumBatches>1)&&this.verbose
+                    fprintf('%d to %d...\n',L, R);
+                end
+                
+                % Compute Predictive Mean
+                ks = this.CovFn.eval(this.X, x_star(:,LR),this)';
+                dkdx = this.CovFn.gradientWRTXStar(this.covpar, this.X, x_star(:,LR));
+                
+                % Compute the gradient
+                jacobian(LR,:) = (dkdx*this.alpha)';%mu_0(LR) + (dkdx'*this.alpha)';
+
+                if (nargout>=2)
+                    % Compute predictive variance
+                    var0 = this.CovFn.pointval(x_star(:,LR), this);
+                    if use_svd
+                        %S2 = S2(:,ones(1,size(x_star(:,LR),2)));
+                        v = bsxfun(@times, factorS, (ks*this.factors.SVD_U)');
+                    elseif use_chol
+                        v = this.factors.L\ks';
+                    else
+                        error('tacopig:badConfiguration', 'Factorization not implemented');
+                    end
+                    var_star(LR) = max(0,var0 - sum(v.*v));
+                    
+                    if (nargout ==3)
+                        % we also want the block
+                        % Can only get here if batches is set to 1
+                        
+                        var0 = this.CovFn.Keval(x_star(:,LR), this);
+                        var_full = var0-v'*v;
+                    end
+                end
+
+            end
+        end
+        %%
         function learn(this)
         % Learns the hyperparameters by minimising the objective function
         %
