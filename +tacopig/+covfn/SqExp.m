@@ -128,18 +128,20 @@ classdef SqExp < tacopig.covfn.CovFunc
                error('tacopig:inputInvalidLength','Wrong number of hyperparameters!');
             end
             v = par(end).^2 * ones(1,size(x_star,2));
-        end
+		end
+		
+		%% gradientWRTXStar
         function partial = gradientWRTXStar(this, par, X, xStar )
 			XDim = size(xStar, 1);
 			if (length(par)~=XDim+1)
                error('tacopig:inputInvalidLength','Wrong number of hyperparameters!');
 			end
 			
-            delta = bsxfun(@minus, xStar, X); % xStar - X
+            delta = bsxfun(@minus, permute(xStar, [1 3 2]), X); % xStar - X
 			w = par(1:end-1)'.^(-2);
             d = bsxfun(@times, w, delta);
-            exponent = -.5*(sum(delta.*d));
-            exponentialPhi = -par(end)^2 * exp(exponent);
+            exponent = -.5*(sum(delta.*d, 1));
+            exponentialPhi = -par(end)^2 .* exp(exponent);
             
             partial = bsxfun(@times, d, exponentialPhi);
         end

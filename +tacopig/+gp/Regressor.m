@@ -250,7 +250,7 @@ classdef Regressor < tacopig.gp.GpCore
             
         end
         
-        function [jacobian, var_star, var_full] = gradient(this, x_star, NumBatches)
+        function jacobian = gradient(this, x_star, NumBatches)
         % Query the model after it has been solved
         %
         % [mu_star, var_star, var_full] = Regressor.query(x_star, batches)
@@ -267,10 +267,7 @@ classdef Regressor < tacopig.gp.GpCore
             end
             if (~this.has_been_solved)
                 error('tacopig:badConfiguration', 'GP must be solved first using GP.solve.');
-            end
-            if (length(x_star(1,:)) > 1)
-                error('only one state at a time, or the stae is nos a column, roberto.');
-            end
+			end
             this.check();
             
             % Get input lengths
@@ -282,38 +279,10 @@ classdef Regressor < tacopig.gp.GpCore
             end
             NumBatches = round(NumBatches);
             
-            % The user can also (optionally get the full variance 
-            if (nargout==3)
-                % provided they havent split the data
-                if (NumBatches > 1)
-                    error('tacopig:badConfiguration', 'Cannot obtain full variance in batches');
-                end
-                
-                if (nx>4000)&(this.verbose)
-                    disp(['Warning: Large number of query points for obtaining full posterior covariance!'...
-                        'This may result in considerable computational time.'...
-                        'Press Ctrl+C to abort or any other key to continue.'])
-                    pause
-                end
-                
-            end
             
             
             jacobian = zeros(nx,size(x_star,1));
-            if (nargout>1) 
-                var_star   = zeros(1,nx);
-            end
                         
-            use_svd = false;
-            use_chol = false;
-            if strcmpi(this.factors.type, 'svd')
-                factorS = sqrt(this.factors.S2);
-                use_svd = true;
-            elseif strcmpi(this.factors.type, 'chol')
-                use_chol = true;
-            else
-                error('tacopig:badConfiguration', 'Factorization is not recognized.');
-            end
             
             % we are currently handling the possibility of multi-task with
             % common points as a general case of GP_Std
@@ -333,34 +302,10 @@ classdef Regressor < tacopig.gp.GpCore
                     fprintf('%d to %d...\n',L, R);
                 end
                 
-                % Compute Predictive Mean
-                ks = this.CovFn.eval(this.X, x_star(:,LR),this)';
                 dkdx = this.CovFn.gradientWRTXStar(this.covpar, this.X, x_star(:,LR));
                 
                 % Compute the gradient
-                jacobian(LR,:) = (dkdx*this.alpha)';%mu_0(LR) + (dkdx'*this.alpha)';
-
-                if (nargout>=2)
-                    % Compute predictive variance
-                    var0 = this.CovFn.pointval(x_star(:,LR), this);
-                    if use_svd
-                        %S2 = S2(:,ones(1,size(x_star(:,LR),2)));
-                        v = bsxfun(@times, factorS, (ks*this.factors.SVD_U)');
-                    elseif use_chol
-                        v = this.factors.L\ks';
-                    else
-                        error('tacopig:badConfiguration', 'Factorization not implemented');
-                    end
-                    var_star(LR) = max(0,var0 - sum(v.*v));
-                    
-                    if (nargout ==3)
-                        % we also want the block
-                        % Can only get here if batches is set to 1
-                        
-                        var0 = this.CovFn.Keval(x_star(:,LR), this);
-                        var_full = var0-v'*v;
-                    end
-                end
+                jacobian(LR,:) = permute(mmx('mult', dkdx, this.alpha,'nn'), [2 3 1]);%mu_0(LR) + (dkdx'*this.alpha)';
 
             end
         end
