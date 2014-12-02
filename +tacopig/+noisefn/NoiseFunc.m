@@ -25,7 +25,9 @@ classdef NoiseFunc < tacopig.taco
          function theta = getNoisePar(GP) % returns the number of noise parameters
             if isa(GP, 'tacopig.gp.GpCore')
                 theta = GP.noisepar; % Included to help with auto-testing
-            elseif isa(GP, 'double')
+            elseif isa(GP, 'tacopig.noisefn.ParameterSupplier')
+                theta = GP.GetParameters;
+			elseif isa(GP, 'double')
                 theta = GP;
             else
                 error('tacopig:badConfiguration', 'Error interpreting noisepar.');
