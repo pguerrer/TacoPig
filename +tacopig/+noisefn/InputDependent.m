@@ -7,7 +7,7 @@ classdef InputDependent < tacopig.noisefn.NoiseFunc
 	end
 	
 	methods
-		function n_theta = npar(obj)
+		function n_theta = npar(obj, ~)
             n_theta = obj.nPar;
 		end
 		function noise = eval(obj, X, GP)

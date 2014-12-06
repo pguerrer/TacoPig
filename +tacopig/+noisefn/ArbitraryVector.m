@@ -8,11 +8,11 @@ classdef ArbitraryVector < tacopig.noisefn.InputDependent
 		function obj = ArbitraryVector
 			obj.nPar = 0;
 			obj.inputDependentFunc = @(x, par) obj.GetNoiseFromVector(x);
-			obj.inputDependentGrad = @(x, par) 0;
+			obj.inputDependentGrad = @(x, par) [];
 		end
 		function noise = GetNoiseFromVector(obj, x)
 			if isequal(obj.X,x)
-				noise = diag(obj.noiseVector);
+				noise = obj.noiseVector;
 			else
 				noise = 0;
 			end

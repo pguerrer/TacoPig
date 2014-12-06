@@ -16,8 +16,14 @@ classdef Sum < tacopig.noisefn.NoiseFunc
 	 methods
 		 function n_theta = npar(this, D)
 			n_theta = 0;
-			for i=1:this.nBaseNoiseFuncs
-				n_theta = n_theta + this.baseNoiseFunc{i}.npar(D);
+			if nargin<2
+				for i=1:this.nBaseNoiseFuncs
+					n_theta = n_theta + this.baseNoiseFunc{i}.npar();
+				end
+			else
+				for i=1:this.nBaseNoiseFuncs
+					n_theta = n_theta + this.baseNoiseFunc{i}.npar(D);
+				end
 			end
         end
         
@@ -31,7 +37,7 @@ classdef Sum < tacopig.noisefn.NoiseFunc
             %         GP = The GP class instance can be passed to give the noise function access to its properties
             % Outputs : noise matrix (N x N)
 			noise = 0;
-			ps = ParameterSupplier;
+			ps = tacopig.noisefn.ParameterSupplier;
 			currentParIndex=1;
 			[D,N] = size(X); %N number of points in X
 			par = tacopig.noisefn.NoiseFunc.getNoisePar(GP);
@@ -41,14 +47,8 @@ classdef Sum < tacopig.noisefn.NoiseFunc
 				noise = noise + this.baseNoiseFunc{i}.eval(X, ps);
 				currentParIndex = currentParIndex + parLength;
 			end
-        end
-	 end
-
-    methods(Static) 
-        
-        
-        
-        function [g] = gradient(X, GP)
+		end
+		function [g] = gradient(this,X, GP)
             %Evaluate the gradient of the noise matrix at locations X with respect to the parameters
             %
             % g = GP.NoiseFn.gradient(X,GP)
@@ -59,18 +59,25 @@ classdef Sum < tacopig.noisefn.NoiseFunc
             %
             % For this class g is a 1 x NumberOfNoiseParameters cell array with the element being a N x N matrix (the gradient of the noise matrix with respect to the ith parameter).
          
-			g = 0;
-			ps = ParameterSupplier;
+			g = {};
+			ps = tacopig.noisefn.ParameterSupplier;
 			currentParIndex=1;
 			[D,N] = size(X); %N number of points in X
 			par = tacopig.noisefn.NoiseFunc.getNoisePar(GP);
 			for i=1:this.nBaseNoiseFuncs
 				parLength = this.baseNoiseFunc{i}.npar(D);
 				ps.parameters = par(currentParIndex:currentParIndex+parLength-1);
-				g = g + this.baseNoiseFunc{i}.gradient(X, ps);
+				g = [g, this.baseNoiseFunc{i}.gradient(X, ps)];
 				currentParIndex = currentParIndex + parLength;
 			end
         end
+	 end
+
+    methods(Static) 
+        
+        
+        
+        
 
     end
 end

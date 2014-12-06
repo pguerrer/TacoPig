@@ -8,8 +8,8 @@ classdef NoisyTrainingSamples < tacopig.noisefn.ArbitraryVector
 		end
 		function SetTrainingSamples(obj, X, SigmaX, sigmaY, GP)
 			obj.X = X;
-			fGradient = GP.gradient(X);
-			obj.noiseVector = sigmaY + Piled_Horizontal(mmx('mult', mmx('mult',fGradient',SigmaX), fGradient));
+			fGradient = Piled_Vertical(GP.gradient(X));
+			obj.noiseVector = sigmaY + Piled_Horizontal(mmx('mult', mmx('mult',fGradient,SigmaX), fGradient,'nt'));
 		end
 	end
 	
