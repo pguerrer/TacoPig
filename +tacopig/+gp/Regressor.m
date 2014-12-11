@@ -235,20 +235,6 @@ classdef Regressor < tacopig.gp.GpCore
             this.partial_derivate = pDerivation;
         end
         
-        % Solo recibe un argumento a la vez
-        function [jacob] = getJacobian(this, state) 
-            rows = length(this.X(1,:));
-            columns = length(state(:,1));
-            jacob = zeros(rows, columns);
-            W = diag(this.covpar(1:end-1),0);
-			phi = this.covpar(end);
-            for contI = 1: rows
-                for contJ = 1 : columns
-                     jacob(contI,contJ) = this.CovFn.getPartialDerivator(phi,W,state,this.X(:,contI),contJ);
-                end
-            end
-            
-        end
         
         function jacobian = gradient(this, x_star, NumBatches)
         % Query the model after it has been solved
@@ -301,12 +287,12 @@ classdef Regressor < tacopig.gp.GpCore
                 if (NumBatches>1)&&this.verbose
                     fprintf('%d to %d...\n',L, R);
                 end
-                
-                dkdx = this.CovFn.gradientWRTXStar(this.covpar, this.X, x_star(:,LR));
-                
-                % Compute the gradient
-                jacobian(LR,:) = permute(mmx('mult', dkdx, this.alpha,'nn'), [2 3 1]);%mu_0(LR) + (dkdx'*this.alpha)';
-
+                for contAux = 1:length(LR)
+                    dkdx = this.CovFn.gradientWRTXStar(this.covpar, this.X, x_star(:,LR(contAux)));
+               
+                    % Compute the gradient
+                    jacobian(LR(contAux),:) = (dkdx*this.alpha)';%mu_0(LR) + (dkdx'*this.alpha)';
+                end
             end
         end
         %%

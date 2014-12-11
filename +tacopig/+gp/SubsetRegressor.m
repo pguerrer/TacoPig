@@ -226,7 +226,92 @@ classdef SubsetRegressor < tacopig.gp.GpCore
             end
         end
         
+        %% se calcula el gradiente del proceso gausiano
         
+        % Set the partial derivation to evaluete the jacobian of the
+        % procesor. The input are the actual state, the n training data and
+        % the index of the component of the state (starting white 1).
+        % the train data to evaluete.
+        function [] = set_kernel_partial_derivation(this, pDerivation)
+            this.partial_derivate = pDerivation;
+        end
+        
+        % Solo recibe un argumento a la vez
+        function [jacob] = getJacobian(this, state) 
+            rows = length(this.X(1,:));
+            columns = length(state(:,1));
+            jacob = zeros(rows, columns);
+            W = diag(this.covpar(1:end-1),0);
+			phi = this.covpar(end);
+            for contI = 1: rows
+                for contJ = 1 : columns
+                     jacob(contI,contJ) = this.CovFn.getPartialDerivator(phi,W,state,this.X(:,contI),contJ);
+                end
+            end
+            
+        end
+        
+        function jacobian = gradient(this, x_star, NumBatches)
+        % Query the model after it has been solved
+        %
+        % [mu_star, var_star, var_full] = Regressor.query(x_star, batches)
+        %
+        % Inputs:   x_star = test points
+        %           NumBatches = the number of batches that the test points are broken up into. Default = 1
+        % Outputs:  mu_star ( predictive mean at the query points)
+        %           var_star ( predictive variance at the query points)
+        %           var_ful ( the full covariance matrix between all query points )
+        
+            % The user can (optionally) split the data into batches)
+            if (nargin<3)
+                NumBatches = 1;
+            end
+            if (~this.has_been_solved)
+                error('tacopig:badConfiguration', 'GP must be solved first using GP.solve.');
+			end
+            this.check();
+            
+            % Get input lengths
+            N = size(this.X,2); 
+            nx = size(x_star,2);
+            
+            if abs(round(NumBatches)-NumBatches)>1e-16
+                error('tacopig:inputInvalidType', 'Batches must be an integer');
+            end
+            NumBatches = round(NumBatches);
+            
+            
+            
+            jacobian = zeros(nx,size(x_star,1));
+                        
+            
+            % we are currently handling the possibility of multi-task with
+            % common points as a general case of GP_Std
+            mu_0 = this.MeanFn.eval(x_star, this);
+            
+            partitions = round(linspace(1, nx+1, NumBatches+1));
+            
+            for i = 1:NumBatches
+                
+                % Handle Batches
+                L = partitions(i);
+                R = partitions(i+1)-1;
+                LR = L:R;
+                
+                % Progress Bar
+                if (NumBatches>1)&&this.verbose
+                    fprintf('%d to %d...\n',L, R);
+                end
+                for contAux = 1:length(LR)
+                    dkdx = this.CovFn.gradientWRTXStar(this.covpar, this.XI, x_star(:,LR(contAux)));
+               
+                    % Compute the gradient
+                    jacobian(LR(contAux),:) = (dkdx*this.palpha)';%mu_0(LR) + (dkdx'*this.alpha)';
+                end
+            end
+        end
+        %%
+
         function learn(this)
         % Learns the hyperparameters by minimising the objective function
         %
