@@ -115,7 +115,10 @@ classdef SubsetRegressor < tacopig.gp.GpCore
                 this.factors.SVD_V = V;
                 this.factors.type = 'svd';
             elseif strcmpi(this.factorisation, 'chol')
-                L = chol(this.Km, 'lower');
+                [L,p] = chol(this.Km, 'lower');
+				if p
+					error('non positive-definite K')
+				end
                 % this.palpha = L'\(L\pseudoY);
                 this.invK = L'\(L\eye(size(this.Km)));
                 this.palpha = (this.invK*pseudoY); 
