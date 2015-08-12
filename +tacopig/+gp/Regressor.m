@@ -309,30 +309,27 @@ classdef Regressor < tacopig.gp.GpCore
             % Pack hyperparameters into a single vector
             par0 = [this.meanpar, this.covpar, this.noisepar];
             [par,fval] = this.solver_function(@(theta) this.objectfun(theta), par0, this.opts);
-             
+
             % some optimizers transpose par... flatten it ...
             par = par(:)';
-             
-             
-             
+
             % Unpack the parameters again to save them:   
             D = size(this.X,1);
             ncovpar = this.CovFn.npar(D);
             nmeanpar = this.MeanFn.npar(D);
             nnoisepar = this.NoiseFn.npar;
             this.meanpar = par(1:nmeanpar);
-            
+
             tmp = par(nmeanpar+(1:ncovpar));
             this.covpar = tmp;
             this.noisepar = par(ncovpar+nmeanpar+(1:nnoisepar));
             this.lml = - tacopig.objectivefn.NLML(this,par);
-            
+
             % It hasnt been solved with the new parameters
             this.has_been_solved = false;
-            
+
         end
-        
-        
+
         function [f_star] = sampleprior(this, x_star, seed)
         % Draws samples from the prior distribution
         %

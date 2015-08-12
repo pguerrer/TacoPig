@@ -12,7 +12,7 @@ classdef InputDependent < tacopig.noisefn.NoiseFunc
 		end
 		function noise = eval(obj, X, GP)
              par = tacopig.noisefn.NoiseFunc.getNoisePar(GP);
-             noise = diag(obj.inputDependentFunc(X,par));
+             noise = diag(obj.inputDependentFunc(X,par,GP));
         end
         
         function [g] = gradient(obj, X, GP)
@@ -20,7 +20,7 @@ classdef InputDependent < tacopig.noisefn.NoiseFunc
 			 if (isempty(obj.inputDependentGrad))
 				 g=[];
 			 else
-				g = diag(obj.inputDependentGrad(X,par));
+				g = diag(obj.inputDependentGrad(X,par,GP));
 			 end
         end
 	end
